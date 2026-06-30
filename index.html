@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimum Prompt Cookbook</title>
+<meta name="description" content="Five prompts that taught me how to communicate effectively with Claude Code.">
+<style>
+  :root{
+    --bg: #06070d;
+    --bg-2: #0a0c18;
+    --glass: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.10);
+    --glass-hi: rgba(255,255,255,0.09);
+    --text: #eef0fb;
+    --muted: #9396b8;
+    --violet: #8b6bff;
+    --violet-soft: #6f5cff;
+    --cyan: #4ee8e0;
+    --pink: #ff6bd6;
+    --display: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+    --body-font: "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+
+  body{
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body-font);
+    overflow-x: hidden;
+  }
+
+  ::selection{ background: var(--violet-soft); color: #fff; }
+
+  /* ============ Background field ============ */
+  .bg-field{
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .grid-overlay{
+    position: absolute;
+    inset: -10%;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%);
+  }
+  .orb{
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    opacity: 0.55;
+    will-change: transform;
+  }
+  .orb-1{
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, var(--violet), transparent 70%);
+    top: -10%; left: -8%;
+    animation: drift1 26s ease-in-out infinite;
+  }
+  .orb-2{
+    width: 460px; height: 460px;
+    background: radial-gradient(circle, var(--cyan), transparent 70%);
+    bottom: 5%; right: -6%;
+    animation: drift2 32s ease-in-out infinite;
+  }
+  .orb-3{
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, var(--pink), transparent 70%);
+    top: 45%; left: 38%;
+    animation: drift3 30s ease-in-out infinite;
+    opacity: 0.35;
+  }
+  @keyframes drift1{
+    0%,100%{ transform: translate(0,0) scale(1); }
+    50%{ transform: translate(60px, 80px) scale(1.1); }
+  }
+  @keyframes drift2{
+    0%,100%{ transform: translate(0,0) scale(1); }
+    50%{ transform: translate(-70px,-50px) scale(1.08); }
+  }
+  @keyframes drift3{
+    0%,100%{ transform: translate(0,0) scale(1); }
+    50%{ transform: translate(40px,-60px) scale(0.92); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior: auto; }
+    .orb{ animation: none; }
+    *{ scroll-behavior: auto !important; }
+  }
+
+  /* ============ Scroll progress rail ============ */
+  .progress-rail{
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 3px;
+    z-index: 90;
+    background: rgba(255,255,255,0.06);
+  }
+  .progress-fill{
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--violet), var(--cyan), var(--pink));
+    box-shadow: 0 0 12px rgba(139,107,255,0.7);
+    transition: width 0.12s linear;
+  }
+
+  /* ============ Floating dot nav ============ */
+  .dot-nav{
+    position: fixed;
+    right: 26px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .dot{
+    all: unset;
+    cursor: pointer;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.25);
+    position: relative;
+    transition: background .2s ease, transform .2s ease, box-shadow .2s ease;
+  }
+  .dot:hover{ transform: scale(1.3); }
+  .dot:focus-visible{ outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .dot.active{
+    background: var(--violet);
+    box-shadow: 0 0 0 4px rgba(139,107,255,0.18), 0 0 14px rgba(139,107,255,0.7);
+    transform: scale(1.25);
+  }
+  .dot-label{
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(10,12,24,0.85);
+    border: 1px solid var(--glass-border);
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+  }
+  .dot:hover .dot-label,
+  .dot:focus-visible .dot-label{
+    opacity: 1;
+    transform: translateY(-50%) translateX(-4px);
+  }
+  @media (max-width: 760px){
+    .dot-nav{ right: 10px; gap: 12px; }
+    .dot-label{ display:none; }
+  }
+
+  /* ============ Toast ============ */
+  .toast{
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(18,20,38,0.92);
+    border: 1px solid var(--glass-border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(78,232,224,0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .toast::before{
+    content: "✓";
+    color: var(--cyan);
+    font-weight: 700;
+  }
+  .toast.show{
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ============ Scroll container & sections ============ */
+  html{
+    scroll-snap-type: y mandatory;
+  }
+  #scrollContainer{
+    position: relative;
+    z-index: 1;
+  }
+  .screen{
+    min-height: 100vh;
+    height: 100vh;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px clamp(20px, 6vw, 80px);
+    position: relative;
+  }
+
+  /* ============ Hero ============ */
+  .hero-inner{
+    max-width: 760px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }
+  .badge{
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 1.5px;
+    color: var(--cyan);
+    background: rgba(78,232,224,0.08);
+    border: 1px solid rgba(78,232,224,0.3);
+    padding: 7px 16px;
+    border-radius: 999px;
+  }
+  .hero-title{
+    font-family: var(--display);
+    font-size: clamp(40px, 7vw, 76px);
+    line-height: 1.05;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -1.5px;
+  }
+  .grad-text{
+    background: linear-gradient(120deg, var(--violet), var(--cyan) 60%, var(--pink));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero-sub{
+    max-width: 56ch;
+    color: var(--muted);
+    font-size: clamp(15px, 2vw, 19px);
+    line-height: 1.7;
+    margin: 0;
+  }
+  .scroll-cue{
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    padding: 12px 22px;
+    border-radius: 999px;
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .scroll-cue svg{ animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob{ 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(4px); } }
+  .scroll-cue:hover{
+    border-color: var(--violet);
+    background: rgba(139,107,255,0.1);
+    transform: translateY(-2px);
+  }
+  .scroll-cue:focus-visible{ outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+  /* ============ Entry sections ============ */
+  .entry-grid{
+    width: 100%;
+    max-width: 1180px;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: clamp(24px, 4vw, 64px);
+    align-items: center;
+  }
+  .entry[data-align="right"] .entry-main{ order: 2; }
+  .entry[data-align="right"] .entry-side{ order: 1; }
+
+  @media (max-width: 860px){
+    .entry-grid{ grid-template-columns: 1fr; }
+    .entry[data-align="right"] .entry-main{ order: 1; }
+    .entry[data-align="right"] .entry-side{ order: 2; }
+    .screen.entry{ padding-top: 70px; padding-bottom: 24px; align-items: flex-start; }
+  }
+
+  .eyebrow{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .eyebrow-num{
+    color: var(--violet);
+    background: rgba(139,107,255,0.12);
+    border: 1px solid rgba(139,107,255,0.3);
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+  .entry-title{
+    font-family: var(--display);
+    font-size: clamp(24px, 3.2vw, 36px);
+    line-height: 1.2;
+    margin: 0 0 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    max-width: 22ch;
+  }
+
+  /* ---- Code block ---- */
+  .code-block{
+    background: linear-gradient(180deg, rgba(20,22,40,0.9), rgba(12,13,26,0.9));
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+    position: relative;
+  }
+  .code-block::before{
+    content:"";
+    position: absolute;
+    inset: -1px;
+    border-radius: 14px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(139,107,255,0.5), transparent 40%, rgba(78,232,224,0.3));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .code-bar{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--glass-border);
+    background: rgba(255,255,255,0.02);
+  }
+  .code-dot{ width: 10px; height: 10px; border-radius: 50%; }
+  .code-dot.r{ background: #ff6464; }
+  .code-dot.y{ background: #ffcf5c; }
+  .code-dot.g{ background: #57e08e; }
+  .code-label{
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .copy-btn{
+    all: unset;
+    cursor: pointer;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    border: 1px solid var(--glass-border);
+    padding: 5px 10px;
+    border-radius: 7px;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .copy-btn:hover{
+    color: var(--cyan);
+    border-color: rgba(78,232,224,0.5);
+    background: rgba(78,232,224,0.07);
+  }
+  .copy-btn:focus-visible{ outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .copy-btn.copied{ color: var(--cyan); border-color: rgba(78,232,224,0.6); }
+
+  .code-text{
+    margin: 0;
+    padding: 22px 22px 26px;
+    font-family: var(--mono);
+    font-size: clamp(13.5px, 1.6vw, 16px);
+    line-height: 1.7;
+    color: #d8dafc;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .tok-string{ color: var(--cyan); }
+  .tok-command{ color: var(--pink); font-weight: 700; }
+  .tok-mention{ color: var(--violet); font-weight: 700; }
+
+  /* ---- Side glass cards ---- */
+  .entry-side{
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .glass-card{
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 24px 26px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 12px 34px rgba(0,0,0,0.35);
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease, background .25s ease;
+  }
+  .glass-card:hover{
+    transform: translateY(-4px);
+    border-color: rgba(139,107,255,0.4);
+    background: var(--glass-hi);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 0 30px rgba(139,107,255,0.12);
+  }
+  .glass-card--lesson{ border-color: rgba(78,232,224,0.22); }
+  .glass-card--lesson:hover{
+    border-color: rgba(78,232,224,0.5);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 0 30px rgba(78,232,224,0.14);
+  }
+  .card-tag{
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--violet);
+    margin-bottom: 10px;
+  }
+  .glass-card--lesson .card-tag{ color: var(--cyan); }
+  .glass-card p{
+    margin: 0;
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+
+  /* ============ Footer ============ */
+  .footer-screen{ scroll-snap-align: end; }
+  .footer-inner{
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-mark{
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    border: 1px solid var(--glass-border);
+    padding: 8px 16px;
+    border-radius: 999px;
+  }
+  .footer-text{
+    font-family: var(--mono);
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .back-top{
+    all: unset;
+    cursor: pointer;
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    padding: 9px 18px;
+    border-radius: 999px;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .back-top:hover{ border-color: var(--violet); background: rgba(139,107,255,0.1); }
+  .back-top:focus-visible{ outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ============ Reveal animation ============ */
+  .reveal{
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity .8s cubic-bezier(.16,.84,.44,1), transform .8s cubic-bezier(.16,.84,.44,1);
+    transition-delay: calc(var(--delay, 0) * 0.12s);
+  }
+  .reveal.in-view{
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .reveal{ transition: none; opacity: 1; transform: none; }
+  }
+
+  a:focus-visible, button:focus-visible{ outline: 2px solid var(--cyan); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div class="bg-field" aria-hidden="true">
+  <span class="orb orb-1"></span>
+  <span class="orb orb-2"></span>
+  <span class="orb orb-3"></span>
+  <span class="grid-overlay"></span>
+</div>
+
+<div class="progress-rail" aria-hidden="true">
+  <div class="progress-fill" id="progressFill"></div>
+</div>
+
+<nav class="dot-nav" aria-label="Section navigation">
+  <button class="dot active" data-target="hero" aria-label="Go to intro"><span class="dot-label">Intro</span></button>
+  <button class="dot" data-target="entry-1" aria-label="Go to prompt 1"><span class="dot-label">01 · Clear Goal</span></button>
+  <button class="dot" data-target="entry-2" aria-label="Go to prompt 2"><span class="dot-label">02 · Context</span></button>
+  <button class="dot" data-target="entry-3" aria-label="Go to prompt 3"><span class="dot-label">03 · Surgical</span></button>
+  <button class="dot" data-target="entry-4" aria-label="Go to prompt 4"><span class="dot-label">04 · Reset</span></button>
+  <button class="dot" data-target="entry-5" aria-label="Go to prompt 5"><span class="dot-label">05 · File-Grounded</span></button>
+  <button class="dot" data-target="footer" aria-label="Go to footer"><span class="dot-label">End</span></button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite">Prompt copied!</div>
+
+<main id="scrollContainer">
+
+  <section class="screen hero" id="hero">
+    <div class="hero-inner reveal">
+      <span class="badge">Module 2 • Prompt Engineering</span>
+      <h1 class="hero-title">Minimum Prompt <span class="grad-text">Cookbook</span></h1>
+      <p class="hero-sub">Five prompts that taught me how to communicate effectively with Claude Code. Small prompts. Better results. Bigger lessons.</p>
+      <button class="scroll-cue" id="scrollCue" aria-label="Scroll to first prompt">
+        <span>Start reading</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section class="screen entry" id="entry-1" data-align="left">
+    <div class="entry-grid">
+      <div class="entry-main reveal">
+        <p class="eyebrow"><span class="eyebrow-num">01</span> The Clear Goal</p>
+        <h2 class="entry-title">Start with intent, not vagueness</h2>
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-label">prompt.txt</span>
+            <button class="copy-btn" data-copy="Create a responsive landing page for my portfolio using HTML and CSS.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="code-text">Create a responsive landing page for my portfolio using HTML and CSS.</pre>
+        </div>
+      </div>
+      <div class="entry-side">
+        <div class="glass-card reveal" style="--delay:1">
+          <span class="card-tag">What Claude Did</span>
+          <p>Generated a clean landing page with responsive sections, semantic HTML, and modern styling.</p>
+        </div>
+        <div class="glass-card glass-card--lesson reveal" style="--delay:2">
+          <span class="card-tag">What I Learned</span>
+          <p>Giving Claude a clear goal produces much better results than asking for "a website."</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen entry" id="entry-2" data-align="right">
+    <div class="entry-grid">
+      <div class="entry-side">
+        <div class="glass-card reveal" style="--delay:1">
+          <span class="card-tag">What Claude Did</span>
+          <p>Improved only the hero section while preserving the rest of the website.</p>
+        </div>
+        <div class="glass-card glass-card--lesson reveal" style="--delay:2">
+          <span class="card-tag">What I Learned</span>
+          <p>Providing context helps Claude make focused improvements instead of rewriting everything.</p>
+        </div>
+      </div>
+      <div class="entry-main reveal">
+        <p class="eyebrow"><span class="eyebrow-num">02</span> Focused Context</p>
+        <h2 class="entry-title">Scope the change, protect the rest</h2>
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-label">prompt.txt</span>
+            <button class="copy-btn" data-copy="Using my existing portfolio files, improve the hero section without changing the overall design.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="code-text">Using my existing portfolio files, improve the hero section without changing the overall design.</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen entry" id="entry-3" data-align="left">
+    <div class="entry-grid">
+      <div class="entry-main reveal">
+        <p class="eyebrow"><span class="eyebrow-num">03</span> Surgical Edits</p>
+        <h2 class="entry-title">Say exactly what shouldn't change</h2>
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-label">prompt.txt</span>
+            <button class="copy-btn" data-copy='Update my package.json by adding a &quot;test&quot; script that runs &quot;vitest&quot;. Keep all existing scripts unchanged.'>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="code-text">Update my package.json by adding a <span class="tok-string">"test"</span> script that runs <span class="tok-string">"vitest"</span>. Keep all existing scripts unchanged.</pre>
+        </div>
+      </div>
+      <div class="entry-side">
+        <div class="glass-card reveal" style="--delay:1">
+          <span class="card-tag">What Claude Did</span>
+          <p>Added only the requested script without changing any other configuration.</p>
+        </div>
+        <div class="glass-card glass-card--lesson reveal" style="--delay:2">
+          <span class="card-tag">What I Learned</span>
+          <p>Specific prompts create smaller, safer edits that are easier to review.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen entry" id="entry-4" data-align="right">
+    <div class="entry-grid">
+      <div class="entry-side">
+        <div class="glass-card reveal" style="--delay:1">
+          <span class="card-tag">What Claude Did</span>
+          <p>Started a fresh session with an empty context window.</p>
+        </div>
+        <div class="glass-card glass-card--lesson reveal" style="--delay:2">
+          <span class="card-tag">What I Learned</span>
+          <p>Clearing context before changing tasks improves accuracy and avoids confusion.</p>
+        </div>
+      </div>
+      <div class="entry-main reveal">
+        <p class="eyebrow"><span class="eyebrow-num">04</span> The Reset</p>
+        <h2 class="entry-title">Sometimes the best prompt is one command</h2>
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-label">command</span>
+            <button class="copy-btn" data-copy="/clear">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="code-text"><span class="tok-command">/clear</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen entry" id="entry-5" data-align="left">
+    <div class="entry-grid">
+      <div class="entry-main reveal">
+        <p class="eyebrow"><span class="eyebrow-num">05</span> File-Grounded Prompts</p>
+        <h2 class="entry-title">Point at the file, not a description of it</h2>
+        <div class="code-block">
+          <div class="code-bar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-label">prompt.txt</span>
+            <button class="copy-btn" data-copy="@index.html
+Improve accessibility while preserving the current design.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+          <pre class="code-text"><span class="tok-mention">@index.html</span>
+Improve accessibility while preserving the current design.</pre>
+        </div>
+      </div>
+      <div class="entry-side">
+        <div class="glass-card reveal" style="--delay:1">
+          <span class="card-tag">What Claude Did</span>
+          <p>Used the HTML file as context and improved accessibility without changing the appearance.</p>
+        </div>
+        <div class="glass-card glass-card--lesson reveal" style="--delay:2">
+          <span class="card-tag">What I Learned</span>
+          <p>Giving Claude the exact file it needs leads to much better answers than describing the code manually.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="screen footer-screen" id="footer">
+    <div class="footer-inner reveal">
+      <div class="footer-mark">MPC</div>
+      <p class="footer-text">Built for Module 2 • Learning Better Prompting with Claude Code</p>
+      <button class="back-top" id="backTop">Back to top</button>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+(function(){
+  const container = document.getElementById('scrollContainer');
+  const sections = Array.from(container.querySelectorAll('.screen'));
+  const dots = Array.from(document.querySelectorAll('.dot'));
+  const progressFill = document.getElementById('progressFill');
+  const toast = document.getElementById('toast');
+  const scrollCue = document.getElementById('scrollCue');
+  const backTop = document.getElementById('backTop');
+
+  // ---- Scroll progress (window-based) ----
+  function updateProgress(){
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = max > 0 ? (scrollTop / max) * 100 : 0;
+    progressFill.style.width = pct + '%';
+  }
+
+  // ---- Active section highlight (dots) ----
+  function setActiveDot(id){
+    dots.forEach(d => d.classList.toggle('active', d.dataset.target === id));
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting && entry.intersectionRatio > 0.5){
+        setActiveDot(entry.target.id);
+      }
+    });
+  }, { threshold: [0.5] });
+
+  sections.forEach(s => observer.observe(s));
+
+  // ---- Reveal-on-scroll animations ----
+  const revealEls = Array.from(document.querySelectorAll('.reveal'));
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting){
+        entry.target.classList.add('in-view');
+      }
+    });
+  }, { threshold: 0.25 });
+  revealEls.forEach(el => revealObserver.observe(el));
+
+  // ---- Dot nav click ----
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      const target = document.getElementById(dot.dataset.target);
+      if(target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  scrollCue.addEventListener('click', () => {
+    document.getElementById('entry-1').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  backTop.addEventListener('click', () => {
+    document.getElementById('hero').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // ---- Keyboard navigation (Arrow Up/Down) ----
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    let currentIndex = 0;
+    let closest = Infinity;
+    sections.forEach((s, i) => {
+      const dist = Math.abs(s.offsetTop - scrollTop);
+      if(dist < closest){ closest = dist; currentIndex = i; }
+    });
+    let nextIndex = currentIndex + (e.key === 'ArrowDown' ? 1 : -1);
+    nextIndex = Math.max(0, Math.min(sections.length - 1, nextIndex));
+    sections[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  // ---- Copy prompt buttons + toast ----
+  let toastTimer;
+  function showToast(){
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+  }
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy');
+      try{
+        await navigator.clipboard.writeText(text);
+      } catch(err){
+        // fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      btn.classList.add('copied');
+      btn.querySelector('svg') && (btn.querySelector('svg').style.display = 'none');
+      showToast();
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        if(btn.querySelector('svg')) btn.querySelector('svg').style.display = '';
+      }, 1400);
+    });
+  });
+
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  window.addEventListener('resize', updateProgress);
+  updateProgress();
+})();
+</script>
+</body>
+</html>
